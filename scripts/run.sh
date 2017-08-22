@@ -62,35 +62,56 @@ summary(){
 				apply_playbooks &
 			}
 		done &
+		echo "Webhook started - http://0.0.0.0:9999${GIT_WEBHOOK:-/webhook}"
 	}
 }
 
 
 apply_playbooks(){
+	echo 'Applying playbooks...'
 	while true; do
 		( exec 100>>$NPC_SETUP_LOCK && flock 100 || exit 1
-			prepare && [ -d $NPC_SETUP_DIR ] && cd $NPC_SETUP_DIR || exit 1
-			summary | md5sum -c --status $NPC_SETUP_LOCK || {
+			prepare && [ -d $NPC_SETUP_DIR ] && cd $NPC_SETUP_DIR || {
+				echo "[ERROR] '$NPC_SETUP_DIR' not exists." >&2
+				exit 1
+			}
+			summary | md5sum -c $NPC_SETUP_LOCK &>/dev/null || {
 				cd $NPC_SETUP_DIR && {
 					[ -f requirements.yml ] && ansible-galaxy install -r requirements.yml
 					for PLAYBOOK in *.yml; do
 						[ -f "$PLAYBOOK" ] && [ "$PLAYBOOK" != "requirements.yml" ] && {
+							echo "Applying $PLAYBOOK..."
 							npc playbook -T 60 "$PLAYBOOK" || exit 1
 						}
 					done
 				}
 				summary | md5sum > $NPC_SETUP_LOCK && exit 0
 			}
-		) && return 0
-		[ ! -z "$NPC_SETUP_RETRY_INTERVAL" ] || return 1
+		) && {
+			echo 'Playbooks applied'
+			return 0
+		}
+		[ ! -z "$NPC_SETUP_RETRY_INTERVAL" ] || {
+			echo 'Playbooks failed'
+			return 1
+		}
+		echo 'Playbooks failed, Retring...'
 		sleep $NPC_SETUP_RETRY_INTERVAL
 	done
 }
+
+cleanup() {
+	[ ! -z "$1" ] && echo "Caught $1 signal! Shutting down..." || echo "Shutting down..."
+	trap - EXIT INT TERM
+	exit 0
+}
+trap 'cleanup INT'  INT
+trap 'cleanup TERM' TERM
+trap 'cleanup' EXIT
 
 while true; do
 	apply_playbooks
 	[ ! -z "$NPC_SETUP_INTERVAL" ] || break
 	sleep $NPC_SETUP_INTERVAL
 done
-
 wait

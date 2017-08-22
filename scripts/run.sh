@@ -93,4 +93,4 @@ while true; do
 	sleep $NPC_SETUP_INTERVAL
 done
 
-cleanup
+wait

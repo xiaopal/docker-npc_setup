@@ -45,7 +45,7 @@ summary(){
 
 	prepare(){
 		[ ! -d $GIT_REPO_DIR ] && git clone $GIT_URL --branch ${GIT_BRANCH:-master} --single-branch $GIT_REPO_DIR
-		( cd $GIT_REPO_DIR && git reset --hard -q HEAD && git pull -q )
+		( cd $GIT_REPO_DIR && git reset --hard -q HEAD && git pull | sed 1d && exit ${PIPESTATUS[0]} )
 	}
 
 	summary(){

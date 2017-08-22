@@ -34,22 +34,18 @@ summary(){
 	) > ~/.ssh/config 
 
 	[ -d /.ssh ] && [ -f /.ssh/id_rsa ] && {
-		echo 'Override ssh keys...'
+		echo "[ $(date -R) ] INFO - Override ssh keys..."
 		cat /.ssh/id_rsa > ~/.ssh/id_rsa
 		[ -f /.ssh/id_rsa.pub ] && cat /.ssh/id_rsa.pub > ~/.ssh/id_rsa.pub
 	}
 
 	[ -f ~/.ssh/id_rsa.pub ] && {
-		echo ' '
-		echo '===SSH PUBLIC KEY==='
-		cat ~/.ssh/id_rsa.pub
-		echo '===================='
-		echo ' '
+		echo "[ $(date -R) ] INFO - SSH PUBLIC KEY: $(cat ~/.ssh/id_rsa.pub)"
 	}
 
 	prepare(){
 		[ ! -d $GIT_REPO_DIR ] && git clone $GIT_URL --branch ${GIT_BRANCH:-master} --single-branch $GIT_REPO_DIR
-		( cd $GIT_REPO_DIR && git reset --hard HEAD && git pull )
+		( cd $GIT_REPO_DIR && git reset --hard -q HEAD && git pull -q )
 	}
 
 	summary(){
@@ -57,51 +53,54 @@ summary(){
 	}
 
 	[ "$GIT_WEBHOOK" != "false" ] && {
+		WEBHOOK="Webhook 'http://$(hostname):9999${GIT_WEBHOOK:-/webhook}'"
 		while true; do 
 			nc -l -p ${GIT_WEBHOOK_PORT:-9000} -e /webhook.sh && { 
+				echo "[ $(date -R) ] INFO - $WEBHOOK triggered"
 				apply_playbooks &
 			}
 		done &
-		echo "Webhook started - http://0.0.0.0:9999${GIT_WEBHOOK:-/webhook}"
+		echo "[ $(date -R) ] INFO - $WEBHOOK started"
 	}
 }
 
 
 apply_playbooks(){
-	echo 'Applying playbooks...'
 	while true; do
 		( exec 100>>$NPC_SETUP_LOCK && flock 100 || exit 1
 			prepare && [ -d $NPC_SETUP_DIR ] && cd $NPC_SETUP_DIR || {
-				echo "[ERROR] '$NPC_SETUP_DIR' not exists." >&2
+				echo "[ $(date -R) ] ERROR - Failed to prepare '$NPC_SETUP_DIR'." >&2
 				exit 1
 			}
 			summary | md5sum -c $NPC_SETUP_LOCK &>/dev/null || {
-				cd $NPC_SETUP_DIR && {
-					[ -f requirements.yml ] && ansible-galaxy install -r requirements.yml
-					for PLAYBOOK in *.yml; do
-						[ -f "$PLAYBOOK" ] && [ "$PLAYBOOK" != "requirements.yml" ] && {
-							echo "Applying $PLAYBOOK..."
-							npc playbook -T 60 "$PLAYBOOK" || exit 1
-						}
-					done
+				echo '[ $(date -R) ] INFO - Applying playbooks...'
+				cd $NPC_SETUP_DIR || exit 1
+				[ -f requirements.yml ] && {
+					ansible-galaxy install -r requirements.yml || exit 1
 				}
+				for PLAYBOOK in *.yml; do
+					[ -f "$PLAYBOOK" ] && [ "$PLAYBOOK" != "requirements.yml" ] && {
+						echo "[ $(date -R) ] INFO - Applying $PLAYBOOK..."
+						npc playbook -T 60 "$PLAYBOOK" || exit 1
+					}
+				done
+				echo '[ $(date -R) ] INFO - Playbooks applied'
 				summary | md5sum > $NPC_SETUP_LOCK && exit 0
 			}
-		) && {
-			echo 'Playbooks applied'
-			return 0
-		}
+		) && return 0
 		[ ! -z "$NPC_SETUP_RETRY_INTERVAL" ] || {
-			echo 'Playbooks failed'
+			echo '[ $(date -R) ] ERROR - Playbooks failed'
 			return 1
 		}
-		echo 'Playbooks failed, Retring...'
+		echo '[ $(date -R) ] WARN - Playbooks failed, Retring...'
 		sleep $NPC_SETUP_RETRY_INTERVAL
 	done
 }
 
 cleanup() {
-	[ ! -z "$1" ] && echo "Caught $1 signal! Shutting down..." || echo "Shutting down..."
+	[ ! -z "$1" ] \
+		&& echo "[ $(date -R) ] INFO - Caught $1 signal! Shutting down..." \
+		|| echo "[ $(date -R) ] INFO - Shutting down..."
 	trap - EXIT INT TERM
 	exit 0
 }

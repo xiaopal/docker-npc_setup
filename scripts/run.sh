@@ -4,12 +4,6 @@ NPC_SETUP_DIR=${NPC_SETUP_DIR:-/playbooks}
 NPC_SETUP_LOCK="${NPC_SETUP_DIR}.lock"
 NPC_SETUP_INTERVAL=${NPC_SETUP_INTERVAL:-1m}
 NPC_SETUP_RETRY_INTERVAL=${NPC_SETUP_RETRY_INTERVAL:-5s}
-[[ "$NPC_SETUP_INTERVAL" = "once" ]] && {
-	NPC_SETUP_INTERVAL=
-	NPC_SETUP_RETRY_INTERVAL=
-}
-[[ "$NPC_SETUP_INTERVAL" =~ ^(none|never|0|-1)$ ]] && NPC_SETUP_INTERVAL=
-[[ "$NPC_SETUP_RETRY_INTERVAL" =~ ^(none|never|0|-1)$ ]] && NPC_SETUP_RETRY_INTERVAL=
 
 prepare(){
 	return 0
@@ -64,9 +58,11 @@ apply_playbooks(){
 }
 
 [ ! -z "$GIT_URL" ] && { 
-	GIT_REPO_DIR=${GIT_REPO_DIR:-/playbooks.repo}
-	NPC_SETUP_DIR="${GIT_REPO_DIR}/${GIT_PATH#/}"
-	NPC_SETUP_LOCK="${GIT_REPO_DIR}.lock"
+	GIT_REPO_DIR="${GIT_REPO_DIR:-/repository}"
+	GIT_BRANCH="${GIT_BRANCH:-master}"
+	GIT_PATH="${GIT_PATH:-/}"
+	NPC_SETUP_DIR="${GIT_REPO_DIR%/}/${GIT_PATH#/}"
+	NPC_SETUP_LOCK="${GIT_REPO_DIR%/}.lock"
 
 	[ ! -f ~/.ssh/id_rsa ] && {
 		echo "[ $(date -R) ] INFO - Generate ssh-key..."
@@ -88,40 +84,29 @@ apply_playbooks(){
 		echo "[ $(date -R) ] INFO - SSH PUBLIC KEY: $(cat ~/.ssh/id_rsa.pub)"
 	}
 
+	summary(){
+		( cd $GIT_REPO_DIR && git rev-parse HEAD )
+	}
+
 	prepare(){
 		clone_repo
 		( cd $GIT_REPO_DIR && git reset --hard -q HEAD && git pull | sed 1d && exit ${PIPESTATUS[0]} )
 	}
 
-	summary(){
-		( cd $GIT_REPO_DIR && git rev-parse HEAD )
-	}
-
 	clone_repo(){
 		[ ! -d $GIT_REPO_DIR ] && {
-			echo "[ $(date -R) ] INFO - Clone '$GIT_URL'(branch=${GIT_BRANCH:-master})..."
-			git clone $GIT_URL --branch ${GIT_BRANCH:-master} --single-branch $GIT_REPO_DIR
+			echo "[ $(date -R) ] INFO - Clone '$GIT_URL'(branch=${GIT_BRANCH})..."
+			git clone "$GIT_URL" --branch "${GIT_BRANCH}" --single-branch $GIT_REPO_DIR
 		}
 	}
 
 	clone_repo
-
-	[ "$GIT_WEBHOOK" != "false" ] && {
-		WEBHOOK="Webhook 'http://localhost:${GIT_WEBHOOK_PORT:-9000}${GIT_WEBHOOK:-/webhook}'"
-		while true; do 
-			nc -l -p ${GIT_WEBHOOK_PORT:-9000} -e /webhook.sh && { 
-				echo "[ $(date -R) ] INFO - $WEBHOOK triggered"
-				apply_playbooks &
-			}
-		done &
-		echo "[ $(date -R) ] INFO - $WEBHOOK started"
-	}
 }
 
 cleanup() {
 	[ ! -z "$1" ] \
 		&& echo "[ $(date -R) ] WARN - Caught $1 signal! Shutting down..." \
-		|| echo "[ $(date -R) ] INFO - Shutting down..."
+		|| echo "[ $(date -R) ] INFO - Finishing..."
 	trap - EXIT INT TERM
 	exit 0
 }
@@ -129,7 +114,26 @@ trap 'cleanup INT'  INT
 trap 'cleanup TERM' TERM
 trap 'cleanup' EXIT
 
-while true; do
+[ ! -z "$NPC_WEBHOOK" ] && {
+	WEBHOOK="Webhook 'http://localhost${NPC_WEBHOOK_PORT:+:${NPC_WEBHOOK_PORT:-80}}$NPC_WEBHOOK'"
+	while true; do 
+		WEBHOOK_PATH="/${NPC_WEBHOOK#/}" \
+		WEBHOOK_TOKEN="$NPC_WEBHOOK_TOKEN" \
+			nc -l -p ${NPC_WEBHOOK_PORT:-80} -e /webhook.sh && { 
+				echo "[ $(date -R) ] INFO - $WEBHOOK triggered"
+				apply_playbooks &
+			}
+	done &
+	echo "[ $(date -R) ] INFO - $WEBHOOK started"
+}
+
+[[ "$NPC_SETUP_INTERVAL" =~ ^(false|no|none|never|0|-1)$ ]] && NPC_SETUP_INTERVAL=
+[[ "$NPC_SETUP_RETRY_INTERVAL" =~ ^(false|no|none|never|0|-1)$ ]] && NPC_SETUP_RETRY_INTERVAL=
+[ ! -z "$NPC_SETUP_INTERVAL" ] && while true; do
+	[[ "$NPC_SETUP_INTERVAL" = "once" ]] && {
+		NPC_SETUP_INTERVAL=
+		NPC_SETUP_RETRY_INTERVAL=
+	}  
 	apply_playbooks
 	[ ! -z "$NPC_SETUP_INTERVAL" ] || break
 	sleep $NPC_SETUP_INTERVAL

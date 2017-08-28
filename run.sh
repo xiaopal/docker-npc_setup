@@ -63,8 +63,8 @@ run_server(){
 	while true; do
 		if read -r "${OPTIONS[@]}" REQUEST; then
 			[ -z "$RECENT_REQUEST" ] && {
-				webhook_check_request "$RECENT_REQUEST" || {
-					echo "[ $(date -R) ] WARN - Illegal webhook request: $RECENT_REQUEST"
+				webhook_check_request "$REQUEST" || {
+					echo "[ $(date -R) ] WARN - Illegal webhook request: $REQUEST"
 					continue
 				} 
 				RECENT_REQUEST="$REQUEST"

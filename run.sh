@@ -68,7 +68,7 @@ run_server(){
 					continue
 				} 
 				RECENT_REQUEST="$REQUEST"
-				echo "[ $(date -R) ] INFO - Webhoook triggered"
+				echo "[ $(date -R) ] INFO - Webhoook triggered by $(jq -r '.remote_addr'<<<"$REQUEST")"
 			}
 			OPTIONS=( -t 0.1 )
 		elif (($? > 128)); then
@@ -176,6 +176,7 @@ http {
     log_format req escape=json '{'
         '"method":"\$request_method",'
         '"uri":"\$request_uri",'
+        '"remote_addr":"\$remote_addr",'
         '"gitlab_token":"\$http_x_gitlab_token",'
         '"github_signature":"\$http_x_hub_signature",'
         '"body":"\$request_body"'
@@ -193,8 +194,7 @@ http {
         }
 
         location ${NPC_WEBHOOK:-/webhook} {
-            ${NPC_WEBHOOK_ACL:-allow all;}
-            deny all;
+            $NPC_WEBHOOK_OPTIONS
             proxy_pass http://127.0.0.1${NPC_WEBHOOK_PORT:+:$NPC_WEBHOOK_PORT}/ok;
             access_log /dev/stdout req;
         }

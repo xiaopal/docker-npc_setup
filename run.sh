@@ -72,11 +72,14 @@ run_server(){
 			}
 			OPTIONS=( -t 0.1 )
 		elif (($? > 128)); then
-			[ ! -z "$RECENT_REQUEST" ] && RECENT_REQUEST=
-			[ ! -z "$NPC_SETUP_INTERVAL" ] && OPTIONS=( -t $NPC_SETUP_INTERVAL ) || OPTIONS=()
-			apply_playbooks || {
-				[ ! -z "$NPC_SETUP_RETRY_INTERVAL" ] && OPTIONS=( -t $NPC_SETUP_RETRY_INTERVAL )
+			[ ! -z "$NPC_SETUP_INTERVAL" ] && OPTIONS=( -t $NPC_SETUP_INTERVAL ) || {
+				OPTIONS=()
+				[ ! -z "$RECENT_REQUEST" ] || continue
 			}
+			apply_playbooks || {
+				[ ! -z "$NPC_SETUP_RETRY_INTERVAL" ] && OPTIONS=( -t $NPC_SETUP_RETRY_INTERVAL ) && continue
+			}
+			[ ! -z "$RECENT_REQUEST" ] && RECENT_REQUEST=
 		else
 			return
 		fi

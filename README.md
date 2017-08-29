@@ -11,6 +11,14 @@ $ docker run -it --rm \
     -e GIT_URL=https://github.com/xiaopal/npc-launch-repo.git \
     xiaopal/npc_setup
 
+# 在本地运行容器（运行一次后退出）
+$ docker run -it --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    -e GIT_URL=https://github.com/xiaopal/npc-launch-repo.git \
+    -e NPC_SETUP_ONCE=Y \
+    xiaopal/npc_setup
+
 # 创建为蜂巢容器服务
 $ docker run -i --rm \
     -e NPC_API_KEY=<API_KEY> \

@@ -89,4 +89,10 @@ $ docker run -i --rm \
             }')"
 EOF
 
+$ docker run -it --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    -e NPC_SETUP_ONCE=Y \
+    -v $PWD/playbook.yml:/playbooks/playbook.yml \
+    xiaopal/npc_setup
 ```

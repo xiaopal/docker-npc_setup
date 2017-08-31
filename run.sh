@@ -109,6 +109,25 @@ webhook_github_signature(){
 		| xargs printf 'sha1=%s'
 }
 
+[ ! -f ~/.ssh/id_rsa ] && {
+	echo "[ $(date -R) ] INFO - Generate ssh-key..."
+	cat /dev/zero | ssh-keygen -q -N "" && echo ' '
+}
+
+( 
+	echo 'StrictHostKeyChecking no' 
+	echo 'UserKnownHostsFile /dev/null'
+) > ~/.ssh/config 
+
+[ -d /.ssh ] && [ -f /.ssh/id_rsa ] && {
+	echo "[ $(date -R) ] INFO - Override ssh-key..."
+	cat /.ssh/id_rsa > ~/.ssh/id_rsa
+	[ -f /.ssh/id_rsa.pub ] && cat /.ssh/id_rsa.pub > ~/.ssh/id_rsa.pub
+}
+
+[ -f ~/.ssh/id_rsa.pub ] && {
+	echo "[ $(date -R) ] INFO - SSH PUBLIC KEY: $(cat ~/.ssh/id_rsa.pub)"
+}
 
 [ ! -z "$GIT_URL" ] && { 
 	GIT_REPO_DIR="${GIT_REPO_DIR:-/repository}"
@@ -116,26 +135,6 @@ webhook_github_signature(){
 	GIT_PATH="${GIT_PATH:-/}"
 	NPC_SETUP_DIR="${GIT_REPO_DIR%/}/${GIT_PATH#/}"
 	NPC_SETUP_LOCK="${GIT_REPO_DIR%/}.lock"
-
-	[ ! -f ~/.ssh/id_rsa ] && {
-		echo "[ $(date -R) ] INFO - Generate ssh-key..."
-		cat /dev/zero | ssh-keygen -q -N "" && echo ' '
-	}
-
-	( 
-		echo 'StrictHostKeyChecking no' 
-		echo 'UserKnownHostsFile /dev/null'
-	) > ~/.ssh/config 
-
-	[ -d /.ssh ] && [ -f /.ssh/id_rsa ] && {
-		echo "[ $(date -R) ] INFO - Override ssh-key..."
-		cat /.ssh/id_rsa > ~/.ssh/id_rsa
-		[ -f /.ssh/id_rsa.pub ] && cat /.ssh/id_rsa.pub > ~/.ssh/id_rsa.pub
-	}
-
-	[ -f ~/.ssh/id_rsa.pub ] && {
-		echo "[ $(date -R) ] INFO - SSH PUBLIC KEY: $(cat ~/.ssh/id_rsa.pub)"
-	}
 
 	summary(){
 		( cd $GIT_REPO_DIR && git rev-parse HEAD )

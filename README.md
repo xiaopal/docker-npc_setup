@@ -95,4 +95,96 @@ $ docker run -it --rm \
     -e NPC_SETUP_ONCE=Y \
     -v $PWD/playbook.yml:/playbooks/playbook.yml \
     xiaopal/npc_setup
+
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook - <<\EOF
+---
+- hosts: localhost
+  connection: local
+  gather_facts: 'no'
+  roles: 
+    - role: xiaopal.npc_setup
+      npc_config:
+        ssh_key: 
+          name: ansible
+      npc_instances: 
+        - name: 'ha-nginx-{a,b}'
+          instance_image: Debian 8.6
+          instance_type:
+            cpu: 1
+            memory: 2G 
+          groups:
+            - nginx
+          wan_ip: any
+          ssh_host_by: wan_ip
+          vars:
+            vrrp_priority: '*:{150,100}'
+            vrrp_state: '*:{BACKUP,BACKUP}'
+            vrrp_vip: '10.173.39.250'
+  tasks:
+    - wait_for: port=22 host="{{npc.instances[item].wan_ip}}" search_regex=OpenSSH delay=5
+      with_inventory_hostnames:
+        - nginx
+- hosts: nginx
+  tasks:
+    - apt: name=nginx state=present update_cache=true
+    - apt: name=keepalived state=present
+    - copy:
+        dest: /etc/keepalived/keepalived.conf
+        content: |
+          vrrp_script check_nginx {
+              script "/bin/bash -c 'kill -0 $(</var/run/nginx.pid)'"
+              weight -60
+              interval 1
+              fall 1
+              rise 1
+          }
+          vrrp_instance VI_1 {
+              state {{vrrp_state}}
+              interface eth0
+              virtual_router_id 21
+              priority {{vrrp_priority}}
+              nopreempt
+              advert_int 1
+              authentication {
+                  auth_type PASS
+                  auth_pass Password
+              }
+              virtual_ipaddress {
+                  {{vrrp_vip}}
+              }
+              track_script {
+                check_nginx
+              }
+          }
+    - copy:
+        dest: /var/www/html/index.html
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+          <title>{{npc_instance.name}}</title>
+          </head>
+          <body>
+          <h1>{{npc_instance.name}} - {{npc_instance.lan_ip}}</h1>
+          <pre>{{npc_instance|to_json}}</pre>
+          </body>
+          </html>
+    - service: name=nginx state=restarted
+    - service: name=keepalived state=restarted
+EOF
+
+
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook --setup <<\EOF
+---
+npc_instances: 
+  - name: 'ha-nginx-{a,b}'
+    present: false
+EOF
+
 ```

@@ -113,22 +113,14 @@ webhook_github_signature(){
 	echo "[ $(date -R) ] INFO - Generate ssh-key..."
 	cat /dev/zero | ssh-keygen -q -N "" && echo ' '
 }
-
-( 
-	echo 'StrictHostKeyChecking no' 
-	echo 'UserKnownHostsFile /dev/null'
-) > ~/.ssh/config 
-
 [ -d /.ssh ] && [ -f /.ssh/id_rsa ] && {
 	echo "[ $(date -R) ] INFO - Override ssh-key..."
 	cat /.ssh/id_rsa > ~/.ssh/id_rsa
 	[ -f /.ssh/id_rsa.pub ] && cat /.ssh/id_rsa.pub > ~/.ssh/id_rsa.pub
 }
-
 [ -f ~/.ssh/id_rsa.pub ] && {
 	echo "[ $(date -R) ] INFO - SSH PUBLIC KEY: $(cat ~/.ssh/id_rsa.pub)"
 }
-
 [ ! -z "$GIT_URL" ] && { 
 	GIT_REPO_DIR="${GIT_REPO_DIR:-/repository}"
 	GIT_BRANCH="${GIT_BRANCH:-master}"

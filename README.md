@@ -1,7 +1,57 @@
 蜂巢云主机编排代理
 ===
 
-updated 2018-01-02
+updated 2018-01-03
+
+新版VPC支持 (NEW)
+---
+```
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook --setup <<\EOF
+---
+npc_ssh_key: { name: test-ssh-key }
+
+npc_instances:
+  - name: vpc-instance-01
+    zone: cn-east-1b
+    instance_type: {series: 2, type: 2, cpu: 4, memory: 8G}
+    instance_image: Debian 8.6
+    vpc: test-vpc
+    vpc_subnet: default
+    vpc_security_group: test_group
+    vpc_inet: yes
+    vpc_inet_capacity: 10m
+    present: yes
+
+npc_vpc_networks:
+  - name: test-vpc
+    present: yes
+    cidr: 10.177.0.0/16
+    subnets:
+      - subnet: default/10.177.231.0/24
+        zone: cn-east-1b
+      - subnet: 10.177.232.0/24
+        zone: cn-east-1b
+    security_groups:
+      - security_group: test_group
+        rules:
+          - rule: ingress, 0.0.0.0/0, icmp
+          - rule: ingress, default, all
+          - rule: ingress, 10.0.0.0/8, {icmp,tcp/22,tcp/80,tcp/443,tcp/8000-9000}
+          - rule: egress, 10.0.0.1, tcp/80-90
+            present: no
+      - security_group: unuse_group
+        present: no
+    route_tables:
+      - route_table: '{main_route_table,test_table}'
+        routes:
+          - route: 192.168.99.0/24
+            via_instance: vpc-instance-01
+EOF
+
+```
 
 开始使用
 ---
@@ -188,5 +238,8 @@ npc_instances:
   - name: 'ha-nginx-{a,b}'
     present: false
 EOF
+
+
+
 
 ```

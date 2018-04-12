@@ -1,7 +1,55 @@
 蜂巢云主机编排代理
 ===
 
-updated 2018-03-19
+updated 2018-04-12
+
+新版OpenAPI虚拟机规格及DNS托管域支持 (NEW)
+---
+```
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook --setup <<\EOF
+---
+npc_dns_zones:
+  - name: in-addr.arpa
+    fallthrough: yes
+    vpc: defaultVPCNetwork
+  - name: example.com
+    vpc: defaultVPCNetwork
+npc_instances:
+  - name: test-vm
+    present: no
+  - name: test-vm-1
+    zone: cn-east-1b
+    instance_type: {spec: "nvm.e2.large8"}
+    instance_image: Debian 8.6
+    vpc: defaultVPCNetwork
+    vpc_subnet: default
+    vpc_security_group: default
+    vpc_inet: yes
+    vpc_inet_capacity: 10m
+    dns_zone: example.com
+    reverse_dns_zone: in-addr.arpa
+    ssh_keys:
+      - Xiaohui-GRAYPC
+    present: yes
+  - name: test-vm-2
+    zone: cn-east-1b
+    instance_type: {"cpu":4,"memory":"8G","series":2,"type":2}
+    instance_image: Debian 8.6
+    vpc: defaultVPCNetwork
+    vpc_subnet: default
+    vpc_security_group: default
+    vpc_inet: yes
+    vpc_inet_capacity: 10m
+    ssh_keys:
+      - Xiaohui-GRAYPC
+    present: yes
+EOF
+
+```
+
 
 新版VPC支持 (NEW)
 ---

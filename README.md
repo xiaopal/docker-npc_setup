@@ -1,7 +1,144 @@
 蜂巢云主机编排代理
 ===
 
-updated 2018-04-12
+updated 2018-06-09
+
+# 云主机负载均衡（NEW）
+```
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook --setup <<EOF
+---
+npc_load_balancings:
+  - name: lb-test
+    vpc: defaultVPCNetwork
+    vpc_subnet: default
+    vpc_security_group: default
+    capacity: 10m
+    present: yes
+EOF
+
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook --setup <<EOF
+---
+npc_instances:
+  - name: test-vm
+    zone: cn-east-1b
+    instance_type: {series: 2, type: 2, cpu: 4, memory: 8G}
+    instance_image: Debian 8.6
+    vpc: defaultVPCNetwork
+    vpc_subnet: default
+    vpc_security_group: default
+    vpc_inet: yes
+    vpc_inet_capacity: 10m
+    ssh_keys:
+      - Xiaohui-GRAYPC
+    present: yes
+npc_load_balancings:
+  - name: lb-test
+    vpc: defaultVPCNetwork
+    vpc_subnet: default
+    vpc_security_group: default
+    capacity: 10m
+    present: yes
+    target_groups:
+      - target_group: test-target-1
+        targets:
+          - test-vm/8888
+      - target_group: test-target-{2,3}
+        absent_targets:
+          - test-vm/4444
+        present_targets:
+          - test-vm/8888
+    listeners:
+      - listener: test-http/80/http
+        rules:
+          - path: /
+            target_group: test-target-1
+      - listener: test-https/443/https
+        present_rules:
+          - host: www.example.com
+            path: /new
+            cert: www-example-com
+            target_group: test-target-2
+        absent_rules:
+          - host: www.example.com
+            path: /old
+            cert: www-example-com
+            target_group: test-target-3
+
+EOF
+
+```
+
+## 支持新版OpenAPI DNS资源记录集创建（NEW）
+```
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook -<<EOF
+---
+- hosts: localhost
+  gather_facts: no
+  roles:
+    - role: xiaopal.npc_setup
+      npc_dns_record_sets:
+        - record_set: A, test{1..100}.example.com @example.com
+          ttl: 3600
+          records: 
+            - '*:1.1.1.{1..100}'
+        - record_set: A, test.example.com @example.com
+          absent_records: 
+            - 1.1.1.1
+          present_records: 
+            - 2.2.2.2
+        - record_set: CNAME, t{1..100}.example.com, 3600 @example.com
+          present_records: 
+            - test.example.com
+        - record_set: SRV, _t{1..100}._tcp.example.com, 3600 @example.com
+          records: 
+            - '@:1 0 8888 test{1..100}.example.com'
+  tasks:
+    - debug: msg={{npc}}
+EOF
+
+$ docker run -i --rm \
+    -e NPC_API_KEY=<API_KEY> \
+    -e NPC_API_SECRET=<API_SECRET> \
+    xiaopal/npc_setup npc playbook -<<EOF
+---
+- hosts: localhost
+  gather_facts: no
+  roles:
+    - role: xiaopal.npc_setup
+      npc_dns_zones:
+        - name: example.com
+          vpc: defaultVPCNetwork
+          record_sets:
+            - record_set: A, test{1..100}.example.com
+              records: 
+                - '*:1.1.1.{1..100}'
+            - record_set: A, test.example.com
+              absent_records: 
+                - 1.1.1.1
+              present_records: 
+                - 2.2.2.2
+            - record_set: CNAME, t{1..100}.example.com
+              present_records: 
+                - test.example.com
+            - record_set: SRV, _t{1..100}._tcp.example.com, 60
+              records: 
+                - '@:1 0 8888 test{1..100}.example.com'
+          
+  tasks:
+    - debug: msg={{npc}}
+EOF
+
+```
+
 
 新版OpenAPI虚拟机规格及DNS托管域支持 (NEW)
 ---
@@ -29,8 +166,6 @@ npc_instances:
     vpc_security_group: default
     vpc_inet: yes
     vpc_inet_capacity: 10m
-    dns_zone: example.com
-    reverse_dns_zone: in-addr.arpa
     ssh_keys:
       - Xiaohui-GRAYPC
     present: yes
